@@ -1,3 +1,23 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
+# Allow Hostinger frontend domain
+origins = [    "https://cretzo.in", ]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,       # allows requests from these domains
+    allow_credentials=True,
+    allow_methods=["*"],         # allow GET, POST, etc.
+    allow_headers=["*"],         # allow all headers
+)
+
+# Your API routes go below
+@app.post("/screen")
+async def screen_cv(...):
+    ...
 from flask import Flask, request, jsonify, render_template, send_file
 from werkzeug.utils import secure_filename
 from flask_sqlalchemy import SQLAlchemy

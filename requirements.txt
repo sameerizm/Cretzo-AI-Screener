@@ -8,3 +8,6 @@ python-docx
 fpdf
 werkzeug
 gunicorn
+fastapi
+uvicorn
+pydantic

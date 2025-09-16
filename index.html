@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI CV Screener</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-content">
+      <h1>AI-Powered CV Screening Like a Human Recruiter</h1>
+      <p>Analyze CVs in seconds, uncover top talent, and reduce hiring time.</p>
+      <button onclick="scrollToForm()">Start Screening</button>
+    </div>
+    <div class="hero-image">
+      <img src="ai_hero.png" alt="AI Illustration">
+    </div>
+  </header>
+
+  <main>
+    <section class="features">
+      <h2>Features</h2>
+      <div class="feature-grid">
+        <div class="feature-card"><i class="fa-solid fa-brain"></i><h3>Semantic Match</h3><p>Understands context, not just keywords.</p></div>
+        <div class="feature-card"><i class="fa-solid fa-magnifying-glass"></i><h3>Skill Gap Analysis</h3><p>See missing skills instantly.</p></div>
+        <div class="feature-card"><i class="fa-solid fa-file-upload"></i><h3>Batch Screening</h3><p>Upload multiple CVs at once.</p></div>
+        <div class="feature-card"><i class="fa-solid fa-chart-line"></i><h3>Dashboard & Reports</h3><p>Visualize results and download PDFs.</p></div>
+      </div>
+    </section>
+
+    <section class="how-it-works">
+      <h2>How It Works</h2>
+      <div class="steps-grid">
+        <div class="step-card"><i class="fa-solid fa-file"></i><h3>Upload JD & Must-Haves</h3></div>
+        <div class="step-card"><i class="fa-solid fa-user"></i><h3>Upload CVs</h3></div>
+        <div class="step-card"><i class="fa-solid fa-robot"></i><h3>AI Scores & Dashboard</h3></div>
+        <div class="step-card"><i class="fa-solid fa-download"></i><h3>Download PDF Reports</h3></div>
+      </div>
+    </section>
+
+    <section id="form-section" class="screen-form">
+      <h2>Upload Job Description & CVs</h2>
+      <form id="upload-form">
+        <label>Job Description (PDF/DOCX)</label><br>
+        <input type="file" name="jd" accept=".pdf,.docx" required /><br><br>
+
+        <label>Mandatory keywords (comma-separated)</label><br>
+        <input type="text" name="must_haves" placeholder="Python, AWS, SQL" /><br><br>
+
+        <label>Candidate CVs (PDF/DOCX) — multiple allowed</label><br>
+        <input type="file" name="cvs" accept=".pdf,.docx" multiple required /><br><br>
+
+        <button type="submit">Start Advanced Screening</button>
+      </form>
+    </section>
+
+    <section id="results-section">
+      <h2>Results</h2>
+      <div id="results-container"></div>
+    </section>
+
+    <section class="testimonials">
+      <h2>What Recruiters Say</h2>
+      <div class="testimonial-grid">
+        <div class="testimonial-card">"This AI CV screener reduced our hiring time by 50%!"<br><strong>- HR Manager</strong></div>
+        <div class="testimonial-card">"It’s like having an extra recruiter on the team."<br><strong>- Talent Lead</strong></div>
+        <div class="testimonial-card">"Semantic matching is a game changer."<br><strong>- Recruitment Specialist</strong></div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>&copy; 2025 AI CV Screener | <a href="mailto:mohammad.sameer@flint-international.me">Contact Us</a></p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

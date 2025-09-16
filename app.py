@@ -14,10 +14,12 @@ app.add_middleware(
     allow_headers=["*"],         # allow all headers
 )
 
-# Your API routes go below
+# ----------------- API ROUTES -----------------
 @app.post("/screen")
-async def screen_cv(...):
-    ...
+async def screen_cv(jd: str, must_haves: str, required_years: float, industry: str, cv: list):
+    # your existing screening code here
+    return {"results": [], "screening_id": "12345"}
+# ----------------- API ROUTES END -----------------
 from flask import Flask, request, jsonify, render_template, send_file
 from werkzeug.utils import secure_filename
 from flask_sqlalchemy import SQLAlchemy

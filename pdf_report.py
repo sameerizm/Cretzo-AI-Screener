@@ -8,21 +8,35 @@ def generate_pdf_report(screening, cvs):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
-    pdf.set_font('Arial', size=14)
-    pdf.cell(0, 8, f'Screening Report: {screening.jd_name}', ln=True, align='C')
+
+    # Title
+    pdf.set_font('Arial', 'B', 16)
+    pdf.cell(0, 10, f"Screening Report: {screening.jd_name}", ln=True, align='C')
     pdf.ln(4)
-    pdf.set_font('Arial', size=11)
-    pdf.cell(0, 8, f'Date: {screening.date}', ln=True)
-    pdf.cell(0, 8, f'Must-haves: {screening.must_haves}', ln=True)
-    pdf.cell(0, 8, f'Total CVs: {screening.total_cvs}', ln=True)
+
+    # Basic info
+    pdf.set_font('Arial', '', 12)
+    pdf.cell(0, 8, f"Date: {screening.date}", ln=True)
+    pdf.cell(0, 8, f"Must-haves: {screening.must_haves}", ln=True)
+    pdf.cell(0, 8, f"Total CVs Processed: {screening.total_cvs}", ln=True)
     pdf.ln(6)
+
+    # CV details
     for c in cvs:
-        pdf.set_font('Arial', size=12, style='B')
-        pdf.cell(0, 8, f'{c.cv_name} — {c.percentage}% {c.emoji}', ln=True)
-        pdf.set_font('Arial', size=11)
-        missing = c.missing_skills if c.missing_skills else 'None'
-        pdf.multi_cell(0, 7, f'Missing Skills: {missing}')
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 8, f"{c['cv_name']} — {c['percentage']}% {c['emoji']}", ln=True)
+        
+        pdf.set_font('Arial', '', 11)
+        missing = ', '.join(c['missing_skills']) if c['missing_skills'] else 'None'
+        pdf.multi_cell(0, 7, f"Missing Skills: {missing}")
+        
+        notes = c.get('notes', '')
+        if notes:
+            pdf.multi_cell(0, 7, f"Notes: {notes}")
+        
         pdf.ln(4)
-    out = os.path.join(REPORTS_DIR, f'screening_{screening.id}.pdf')
-    pdf.output(out)
-    return out
+
+    # Save PDF
+    out_path = os.path.join(REPORTS_DIR, f'screening_{screening.id}.pdf')
+    pdf.output(out_path)
+    return out_path

@@ -1,42 +1,56 @@
+"""
+PDF Report Generation Module
+Creates professional CV screening reports
+"""
+
 import os
+import logging
+from typing import Dict, Any, List
 from fpdf import FPDF
+from datetime import datetime
 
-REPORTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
-os.makedirs(REPORTS_DIR, exist_ok=True)
+logger = logging.getLogger(__name__)
 
-def generate_pdf_report(screening, cvs):
-    pdf = FPDF()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
-
-    # Title
-    pdf.set_font('Arial', 'B', 16)
-    pdf.cell(0, 10, f"Screening Report: {screening.jd_name}", ln=True, align='C')
-    pdf.ln(4)
-
-    # Basic info
-    pdf.set_font('Arial', '', 12)
-    pdf.cell(0, 8, f"Date: {screening.date}", ln=True)
-    pdf.cell(0, 8, f"Must-haves: {screening.must_haves}", ln=True)
-    pdf.cell(0, 8, f"Total CVs Processed: {screening.total_cvs}", ln=True)
-    pdf.ln(6)
-
-    # CV details
-    for c in cvs:
-        pdf.set_font('Arial', 'B', 12)
-        pdf.cell(0, 8, f"{c['cv_name']} — {c['percentage']}% {c['emoji']}", ln=True)
-        
-        pdf.set_font('Arial', '', 11)
-        missing = ', '.join(c['missing_skills']) if c['missing_skills'] else 'None'
-        pdf.multi_cell(0, 7, f"Missing Skills: {missing}")
-        
-        notes = c.get('notes', '')
-        if notes:
-            pdf.multi_cell(0, 7, f"Notes: {notes}")
-        
-        pdf.ln(4)
-
-    # Save PDF
-    out_path = os.path.join(REPORTS_DIR, f'screening_{screening.id}.pdf')
-    pdf.output(out_path)
-    return out_path
+class PDFReportGenerator:
+    """Professional PDF report generator for CV screening results"""
+    
+    def __init__(self):
+        self.report_dir = "reports"
+        os.makedirs(self.report_dir, exist_ok=True)
+    
+    def generate_report(self, screening_results: Dict[str, Any], screening_id: str) -> str:
+        """Generate comprehensive PDF report"""
+        try:
+            pdf = FPDF()
+            pdf.set_auto_page_break(auto=True, margin=15)
+            
+            # Add title page
+            self._add_title_page(pdf, screening_results)
+            
+            # Add executive summary
+            self._add_executive_summary(pdf, screening_results)
+            
+            # Add job analysis
+            self._add_job_analysis(pdf, screening_results['job_analysis'])
+            
+            # Add candidate results
+            for candidate in screening_results['candidates']:
+                self._add_candidate_page(pdf, candidate)
+            
+            # Add recommendations
+            self._add_recommendations(pdf, screening_results)
+            
+            # Save report
+            report_path = os.path.join(self.report_dir, f"screening_report_{screening_id}.pdf")
+            pdf.output(report_path)
+            
+            logger.info(f"Report generated: {report_path}")
+            return report_path
+            
+        except Exception as e:
+            logger.error(f"Error generating PDF report: {e}")
+            raise
+    
+    def _add_title_page(self, pdf: FPDF, screening_results: Dict[str, Any]):
+        """Add title page to report"""
+        pdf.add_page()

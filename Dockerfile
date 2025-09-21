@@ -1,4 +1,4 @@
-# Use a stable Python version compatible with PyTorch CPU
+# Use stable Python version compatible with PyTorch CPU
 FROM python:3.10-slim
 
 # Set working directory

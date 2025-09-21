@@ -1,11 +1,11 @@
 services:
   - type: web
     name: cv-screening-api
-    env: docker       # Use Docker environment, not Python
+    env: docker
     plan: starter
-    dockerfilePath: ./Dockerfile  # Path to your Dockerfile
+    dockerfilePath: ./Dockerfile   # points to your Dockerfile
     envVars:
       - key: ENVIRONMENT
         value: production
     healthCheckPath: /health
-    autoDeploy: true
+

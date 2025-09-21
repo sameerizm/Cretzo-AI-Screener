@@ -1,13 +1,27 @@
 """
 PDF Report Generation Module
 Creates professional CV screening reports
+Compatible with older fpdf versions
 """
 
 import os
 import logging
 from typing import Dict, Any, List
-from fpdf import FPDF
 from datetime import datetime
+
+# Handle fpdf import gracefully
+try:
+    from fpdf import FPDF
+    FPDF_AVAILABLE = True
+except ImportError:
+    try:
+        from fpdf2 import FPDF
+        FPDF_AVAILABLE = True
+    except ImportError:
+        FPDF_AVAILABLE = False
+        class FPDF:
+            def __init__(self):
+                raise ImportError("No PDF library available")
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +34,18 @@ class PDFReportGenerator:
     
     def generate_report(self, screening_results: Dict[str, Any], screening_id: str) -> str:
         """Generate comprehensive PDF report"""
+        if not FPDF_AVAILABLE:
+            logger.warning("PDF generation not available - fpdf library missing")
+            return ""
+            
         try:
             pdf = FPDF()
-            pdf.set_auto_page_break(auto=True, margin=15)
+            
+            # Handle different fpdf versions
+            try:
+                pdf.set_auto_page_break(auto=True, margin=15)
+            except:
+                pdf.set_auto_page_break(True, 15)
             
             # Add title page
             self._add_title_page(pdf, screening_results)
@@ -49,7 +72,7 @@ class PDFReportGenerator:
             
         except Exception as e:
             logger.error(f"Error generating PDF report: {e}")
-            raise
+            return ""
     
     def _add_title_page(self, pdf: FPDF, screening_results: Dict[str, Any]):
         """Add title page to report"""

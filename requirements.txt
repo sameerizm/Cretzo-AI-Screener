@@ -1,19 +1,17 @@
-# Ultra-minimal requirements - guaranteed to work
-# API will work but with basic text matching instead of AI
-
+# Render-compatible requirements - tested versions
 setuptools>=60.0.0
-wheel
+wheel>=0.37.0
 
-# Web framework only
-fastapi==0.104.1
-uvicorn==0.24.0
+# Core web framework - older stable versions
+fastapi==0.100.1
+uvicorn==0.23.2
 python-multipart==0.0.6
-pydantic==2.5.0
+pydantic==2.3.0
 
-# Basic text processing
-pdfplumber==0.10.0
-python-docx==1.1.0
-fpdf2==2.7.9
+# Document processing - no compilation needed
+pdfplumber==0.9.0
+python-docx==0.8.11
+fpdf2==2.7.4
 
 # Basic utilities
 python-dateutil==2.8.2

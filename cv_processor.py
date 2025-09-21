@@ -1,20 +1,35 @@
 """
 Advanced CV Processing Module
 Implements human-like recruiter logic for CV screening
+Compatible with minimal dependencies for deployment
 """
 
 import re
 import json
 import logging
 from typing import List, Dict, Any, Tuple, Optional
-import numpy as np
 import pdfplumber
-from docx import Document
+
+# Handle docx import gracefully
+try:
+    from docx import Document
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
+    class Document:
+        def __init__(self, *args, **kwargs):
+            raise ImportError("python-docx not available")
 
 # Try to import ML libraries, fall back to basic matching if not available
 try:
     from sentence_transformers import SentenceTransformer
-    from sklearn.metrics.pairwise import cosine_similarity
+    try:
+        from sklearn.metrics.pairwise import cosine_similarity
+    except ImportError:
+        from numpy import dot
+        from numpy.linalg import norm
+        def cosine_similarity(a, b):
+            return [[dot(a[0], b[0]) / (norm(a[0]) * norm(b[0]))]]
     ML_AVAILABLE = True
     print("✅ AI/ML libraries loaded successfully")
 except ImportError as e:
@@ -25,6 +40,7 @@ except ImportError as e:
     class SentenceTransformer:
         def __init__(self, model_name):
             self.model_name = model_name
+            print(f"⚠️ Mock model loaded: {model_name}")
         def encode(self, texts):
             return [[0.0] * 384 for _ in texts]  # Mock embeddings
 
@@ -86,6 +102,10 @@ class CVProcessor:
     
     def extract_text_from_docx(self, file_content: bytes) -> str:
         """Extract text from DOCX file"""
+        if not DOCX_AVAILABLE:
+            logger.warning("python-docx not available, skipping DOCX file")
+            return ""
+        
         try:
             from io import BytesIO
             doc = Document(BytesIO(file_content))

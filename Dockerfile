@@ -1,23 +1,26 @@
-# Use Python 3.10 slim image (lightweight, prebuilt wheels compatible)
+# Use a stable Python version compatible with PyTorch CPU
 FROM python:3.10-slim
 
 # Set working directory
 WORKDIR /app
 
-# Copy requirements first for caching
-COPY requirements.txt .
-
-# Upgrade pip, setuptools, wheel to avoid build errors
+# Upgrade pip, setuptools, and wheel
 RUN pip install --upgrade pip setuptools wheel
 
-# Install dependencies
+# Install PyTorch CPU wheels separately
+RUN pip install torch==2.8.0+cpu torchvision==0.21.0+cpu torchaudio==2.8.0+cpu --extra-index-url https://download.pytorch.org/whl/cpu
+
+# Copy requirements (without torch)
+COPY requirements.txt .
+
+# Install remaining dependencies
 RUN pip install -r requirements.txt
 
-# Copy all source code
+# Copy your app code
 COPY . .
 
-# Expose default port
-EXPOSE 8080
+# Expose port for Render
+EXPOSE 10000
 
-# Start FastAPI app
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
+# Start command
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "10000"]

@@ -1,16 +1,9 @@
-# Ultra-minimal for guaranteed Render deployment
-# Pure Python packages only - no compilation required
+# ABSOLUTE MINIMAL - Guaranteed to work on any Python environment
+# Only the most essential packages with very old stable versions
 
-# Web framework
-fastapi==0.68.0
-uvicorn==0.15.0
+# Web framework only
+fastapi==0.65.2
+uvicorn==0.14.0
 
-# File handling
-pdfplumber==0.6.0
-python-docx==0.8.11
-
-# PDF generation
-fpdf==2.5.7
-
-# Basic utilities
-python-dateutil==2.8.2
+# Basic utilities only
+python-dateutil==2.8.1

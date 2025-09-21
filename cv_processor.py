@@ -7,11 +7,26 @@ import re
 import json
 import logging
 from typing import List, Dict, Any, Tuple, Optional
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 import pdfplumber
 from docx import Document
+
+# Try to import ML libraries, fall back to basic matching if not available
+try:
+    from sentence_transformers import SentenceTransformer
+    from sklearn.metrics.pairwise import cosine_similarity
+    ML_AVAILABLE = True
+    print("✅ AI/ML libraries loaded successfully")
+except ImportError as e:
+    print(f"⚠️ ML libraries not available: {e}")
+    print("📝 Using basic text matching instead of AI")
+    ML_AVAILABLE = False
+    # Mock classes for compatibility
+    class SentenceTransformer:
+        def __init__(self, model_name):
+            self.model_name = model_name
+        def encode(self, texts):
+            return [[0.0] * 384 for _ in texts]  # Mock embeddings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -22,7 +37,19 @@ class CVProcessor:
     
     def __init__(self):
         # Load pre-trained sentence transformer for semantic analysis
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
+        if ML_AVAILABLE:
+            try:
+                self.model = SentenceTransformer('all-MiniLM-L6-v2')
+                self.ai_enabled = True
+                logger.info("✅ AI model loaded successfully")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not load AI model: {e}")
+                self.model = None
+                self.ai_enabled = False
+        else:
+            self.model = None
+            self.ai_enabled = False
+            logger.info("📝 Using basic text matching mode")
         
         # Skill categories and synonyms for intelligent matching
         self.skill_synonyms = {
@@ -178,13 +205,33 @@ class CVProcessor:
     
     def calculate_semantic_similarity(self, text1: str, text2: str) -> float:
         """Calculate semantic similarity between two texts"""
+        if not self.ai_enabled or not self.model:
+            # Fall back to basic string similarity
+            return self._basic_text_similarity(text1, text2)
+        
         try:
             embeddings = self.model.encode([text1, text2])
-            similarity = cosine_similarity([embeddings[0]], [embeddings[1]])[0][0]
+            if ML_AVAILABLE:
+                similarity = cosine_similarity([embeddings[0]], [embeddings[1]])[0][0]
+            else:
+                similarity = self._basic_text_similarity(text1, text2)
             return float(similarity)
         except Exception as e:
             logger.error(f"Error calculating similarity: {e}")
+            return self._basic_text_similarity(text1, text2)
+    
+    def _basic_text_similarity(self, text1: str, text2: str) -> float:
+        """Basic text similarity using word overlap"""
+        words1 = set(text1.lower().split())
+        words2 = set(text2.lower().split())
+        
+        if not words1 or not words2:
             return 0.0
+        
+        intersection = words1.intersection(words2)
+        union = words1.union(words2)
+        
+        return len(intersection) / len(union) if union else 0.0
     
     def match_skills_semantic(self, cv_skills: List[str], jd_skills: List[str]) -> Tuple[List[str], List[str], float]:
         """Match skills using semantic similarity"""

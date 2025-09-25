@@ -1,16 +1,14 @@
 services:
   - type: web
-    name: cretzo-ai
+    name: cretzo-ai-emergency
     env: python
     plan: starter
     buildCommand: |
-      python -m pip install --upgrade pip
-      pip install --no-cache-dir -r requirements.txt
-    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+      python3 -m pip install --upgrade pip==21.3.1
+      pip install --no-deps --no-cache-dir fastapi==0.68.0 uvicorn==0.15.0
+    startCommand: python app.py
     envVars:
       - key: PYTHON_VERSION
-        value: 3.9.18
-      - key: ENVIRONMENT
-        value: production
+        value: 3.9.7
     healthCheckPath: /health
 

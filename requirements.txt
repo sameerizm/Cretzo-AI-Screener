@@ -1,15 +1,24 @@
+# SAFE AI VERSION - Gradual upgrade approach
+# Start with core, add AI features progressively
+
 # Core web framework (guaranteed to work)
 fastapi==0.68.0
 uvicorn==0.15.0
 
-# AI libraries (optional - will gracefully fallback if not available)
-sentence-transformers==2.2.2
-torch==1.13.1
-numpy==1.21.6
+# Basic document processing (lightweight, no compilation)
+python-dateutil==2.8.1
 
-# Document processing (optional - will fallback if not available)
-pdfplumber==0.7.4
-python-docx==0.8.11
+# Optional: Add these ONE BY ONE after core deployment works
+# Uncomment gradually in subsequent deployments:
 
-# PDF generation (optional)
-fpdf==2.5.4
+# Step 1: Uncomment for basic document processing
+# pdfplumber==0.7.4
+# python-docx==0.8.11
+
+# Step 2: Uncomment for PDF reports  
+# fpdf==2.5.4
+
+# Step 3: Uncomment for AI features (last step)
+# sentence-transformers==2.2.2
+# torch==2.5.1
+# numpy==1.21.6

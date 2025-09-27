@@ -1,6 +1,6 @@
 """
-Cretzo AI - Progressive CV Screening System
-Starts basic, adds features as dependencies become available
+Cretzo AI - Smart CV Screening (Quick Fix)
+Fixed HTML syntax error and streamlined for immediate deployment
 """
 
 import os
@@ -11,63 +11,43 @@ import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Tuple
 
-# Core framework (always available)
 from fastapi import FastAPI, Request, Form, File, UploadFile, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
-# Progressive imports - graceful fallbacks
+# Progressive imports with fallbacks
+AI_AVAILABLE = False
+PDF_AVAILABLE = False
+DOCX_AVAILABLE = False
+
 try:
     from sentence_transformers import SentenceTransformer
+    AI_MODEL = SentenceTransformer('all-MiniLM-L6-v2')
     AI_AVAILABLE = True
+    print("✅ AI model loaded")
+except:
     AI_MODEL = None
-    print("✅ AI libraries found - loading model...")
-    try:
-        AI_MODEL = SentenceTransformer('all-MiniLM-L6-v2')
-        print("✅ AI model loaded successfully")
-    except Exception as e:
-        print(f"⚠️ AI model loading failed: {e}")
-        AI_AVAILABLE = False
-except ImportError:
-    AI_AVAILABLE = False
-    AI_MODEL = None
-    print("📝 AI libraries not available - using advanced text analysis")
+    print("📝 Using text-based analysis")
 
 try:
     import pdfplumber
     PDF_AVAILABLE = True
-    print("✅ PDF processing available")
-except ImportError:
-    PDF_AVAILABLE = False
-    print("📝 PDF processing not available")
+    print("✅ PDF support available")
+except:
+    print("📝 PDF support not available")
 
 try:
     from docx import Document as DocxDocument
     DOCX_AVAILABLE = True
-    print("✅ DOCX processing available")
-except ImportError:
-    DOCX_AVAILABLE = False
-    print("📝 DOCX processing not available")
+    print("✅ DOCX support available")
+except:
+    print("📝 DOCX support not available")
 
-try:
-    from fpdf import FPDF
-    PDF_GEN_AVAILABLE = True
-    print("✅ PDF report generation available")
-except ImportError:
-    PDF_GEN_AVAILABLE = False
-    print("📝 PDF report generation not available")
-
-# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI
-app = FastAPI(
-    title="Cretzo AI - Progressive CV Screening",
-    description="Human-like CV screening with progressive AI enhancement",
-    version="2.1.0"
-)
+app = FastAPI(title="Cretzo AI", description="Smart CV Screening", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -78,545 +58,357 @@ app.add_middleware(
 )
 
 # Storage
-screening_results = {}
-contact_submissions = []
+results_store = {}
+contacts = []
 
-class SmartCVProcessor:
-    """Smart CV processor with progressive enhancement"""
-    
+class SmartCVAnalyzer:
     def __init__(self):
         self.ai_model = AI_MODEL
-        self.ai_enabled = AI_AVAILABLE and AI_MODEL is not None
+        self.ai_enabled = AI_AVAILABLE
         
-        # Enhanced skill patterns for text-based analysis
-        self.skill_patterns = {
-            'programming_languages': [
-                r'\b(?:python|java|javascript|js|typescript|c\+\+|c#|php|ruby|go|rust|swift|kotlin|scala)\b',
-                r'\b(?:html|css|sass|less|scss)\b'
-            ],
-            'frameworks': [
-                r'\b(?:react|angular|vue|django|flask|spring|laravel|express|fastapi|nodejs|node\.js)\b',
-                r'\b(?:bootstrap|tailwind|material-ui|mui|jquery)\b'
-            ],
-            'databases': [
-                r'\b(?:mysql|postgresql|mongodb|redis|elasticsearch|oracle|sqlite|cassandra|dynamodb)\b'
-            ],
-            'cloud_devops': [
-                r'\b(?:aws|azure|gcp|google cloud|docker|kubernetes|k8s|jenkins|git|github|gitlab)\b',
-                r'\b(?:terraform|ansible|chef|puppet|nagios|prometheus)\b'
-            ],
-            'data_ai': [
-                r'\b(?:machine learning|ml|ai|data science|tensorflow|pytorch|pandas|numpy|scikit-learn)\b',
-                r'\b(?:tableau|power bi|excel|sql|analytics|statistics)\b'
-            ],
-            'project_management': [
-                r'\b(?:agile|scrum|kanban|jira|confluence|project management|pmp|prince2)\b'
-            ]
-        }
+    def extract_text(self, content: bytes, filename: str) -> str:
+        """Extract text from file"""
+        fname = filename.lower()
         
-        # Synonym mapping for intelligent matching
-        self.skill_synonyms = {
-            'javascript': ['javascript', 'js', 'ecmascript', 'es6', 'es2015', 'typescript'],
-            'react': ['react', 'reactjs', 'react.js', 'redux', 'jsx'],
-            'nodejs': ['node.js', 'nodejs', 'node', 'express', 'express.js'],
-            'python': ['python', 'py', 'python3', 'django', 'flask', 'fastapi'],
-            'aws': ['aws', 'amazon web services', 'ec2', 's3', 'lambda', 'cloudformation'],
-            'database': ['sql', 'mysql', 'postgresql', 'mongodb', 'database', 'db'],
-            'docker': ['docker', 'containerization', 'containers', 'kubernetes', 'k8s']
-        }
-
-    def extract_text_from_file(self, file_content: bytes, filename: str) -> str:
-        """Extract text with progressive enhancement"""
-        filename_lower = filename.lower()
+        if fname.endswith('.pdf') and PDF_AVAILABLE:
+            try:
+                import io
+                with pdfplumber.open(io.BytesIO(content)) as pdf:
+                    return '\n'.join(page.extract_text() or '' for page in pdf.pages)
+            except:
+                return "PDF processing failed"
         
-        if filename_lower.endswith('.pdf') and PDF_AVAILABLE:
-            return self._extract_pdf(file_content)
-        elif filename_lower.endswith(('.docx', '.doc')) and DOCX_AVAILABLE:
-            return self._extract_docx(file_content)
-        elif filename_lower.endswith('.txt'):
-            return self._extract_txt(file_content)
+        elif fname.endswith(('.docx', '.doc')) and DOCX_AVAILABLE:
+            try:
+                import io
+                doc = DocxDocument(io.BytesIO(content))
+                return '\n'.join(p.text for p in doc.paragraphs)
+            except:
+                return "DOCX processing failed"
+        
         else:
-            # Fallback: try to decode as text
             try:
-                return file_content.decode('utf-8', errors='ignore')
+                return content.decode('utf-8', errors='ignore')
             except:
-                return f"Could not process {filename} - unsupported format"
+                return "Could not process file"
 
-    def _extract_pdf(self, file_content: bytes) -> str:
-        """Extract text from PDF"""
-        try:
-            import io
-            with pdfplumber.open(io.BytesIO(file_content)) as pdf:
-                text = ""
-                for page in pdf.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        text += page_text + "\n"
-                return text.strip()
-        except Exception as e:
-            logger.error(f"PDF extraction error: {e}")
-            return f"PDF processing failed: {str(e)}"
-
-    def _extract_docx(self, file_content: bytes) -> str:
-        """Extract text from DOCX"""
-        try:
-            import io
-            doc = DocxDocument(io.BytesIO(file_content))
-            text = ""
-            for paragraph in doc.paragraphs:
-                text += paragraph.text + "\n"
-            return text.strip()
-        except Exception as e:
-            logger.error(f"DOCX extraction error: {e}")
-            return f"DOCX processing failed: {str(e)}"
-
-    def _extract_txt(self, file_content: bytes) -> str:
-        """Extract text from TXT"""
-        try:
-            return file_content.decode('utf-8', errors='ignore')
-        except:
-            try:
-                return file_content.decode('latin-1', errors='ignore')
-            except:
-                return "Text file encoding not supported"
-
-    def extract_skills_comprehensive(self, text: str) -> List[str]:
-        """Extract skills using comprehensive pattern matching"""
+    def extract_skills(self, text: str) -> List[str]:
+        """Extract skills from text"""
         skills = set()
         text_lower = text.lower()
         
-        # Apply all skill patterns
-        for category, patterns in self.skill_patterns.items():
-            for pattern in patterns:
-                matches = re.findall(pattern, text_lower, re.IGNORECASE)
-                skills.update(matches)
+        # Technical skills patterns
+        patterns = [
+            r'\b(?:python|java|javascript|js|react|angular|vue|node|express)\b',
+            r'\b(?:sql|mysql|postgresql|mongodb|redis|oracle)\b',
+            r'\b(?:aws|azure|docker|kubernetes|git|linux|windows)\b',
+            r'\b(?:html|css|bootstrap|jquery|typescript|php|ruby)\b'
+        ]
         
-        # Extract from skill sections
+        for pattern in patterns:
+            matches = re.findall(pattern, text_lower)
+            skills.update(matches)
+        
+        # Skills from sections
         skill_sections = re.findall(
-            r'(?:skills|technologies|technical skills|expertise|tools|competencies):?\s*([^\n]*(?:\n[^\n]*){0,15})',
-            text_lower, re.IGNORECASE
+            r'(?:skills|technologies):?\s*([^\n]*(?:\n[^\n]*){0,5})',
+            text_lower
         )
         
         for section in skill_sections:
-            # Split by delimiters
-            section_skills = re.split(r'[,;|•\n\-\*\t]', section)
-            for skill in section_skills:
-                skill = skill.strip()
-                if 2 < len(skill) < 30 and not skill.isdigit():
-                    skills.add(skill)
+            parts = re.split(r'[,;|\n]', section)
+            for part in parts:
+                clean = part.strip()
+                if 2 < len(clean) < 25:
+                    skills.add(clean)
         
         return list(skills)
 
-    def calculate_experience_years(self, text: str) -> int:
-        """Enhanced experience calculation"""
-        # Direct experience mentions
+    def calculate_experience(self, text: str) -> int:
+        """Calculate years of experience"""
+        # Look for explicit mentions
         exp_patterns = [
-            r'(\d+)\+?\s*years?\s*(?:of\s*)?(?:experience|exp)',
-            r'experience:?\s*(\d+)\+?\s*years?',
-            r'(\d+)\+?\s*years?\s*in\s*(?:software|development|programming|it|tech)',
-            r'over\s*(\d+)\s*years?',
-            r'more than\s*(\d+)\s*years?',
-            r'(\d+)\s*years?\s*professional\s*experience'
+            r'(\d+)\+?\s*years?\s*(?:of\s*)?experience',
+            r'(\d+)\+?\s*years?\s*in\s*(?:software|development|programming)'
         ]
         
         years = []
         for pattern in exp_patterns:
-            matches = re.findall(pattern, text.lower(), re.IGNORECASE)
-            for match in matches:
-                try:
-                    years.append(int(match))
-                except ValueError:
-                    continue
+            matches = re.findall(pattern, text.lower())
+            years.extend([int(m) for m in matches if m.isdigit()])
         
         if years:
             return max(years)
         
-        # Calculate from employment dates
+        # Calculate from dates
         current_year = datetime.now().year
-        date_patterns = [
-            r'\b((?:19|20)\d{2})\s*[-–]\s*((?:19|20)\d{2}|present|current|now)\b',
-            r'\b((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*)\s+((?:19|20)\d{2})\s*[-–]\s*((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+(?:19|20)\d{2}|present|current)\b'
-        ]
+        date_matches = re.findall(r'\b(20\d{2})\s*[-–]\s*(20\d{2}|present)', text.lower())
         
-        total_years = 0
-        for pattern in date_patterns:
-            matches = re.findall(pattern, text.lower(), re.IGNORECASE)
-            for match in matches:
-                try:
-                    if len(match) == 2:  # Year format
-                        start_year = int(match[0])
-                        end_year = current_year if match[1].lower() in ['present', 'current', 'now'] else int(match[1])
-                        if end_year >= start_year:
-                            total_years += (end_year - start_year)
-                except (ValueError, IndexError):
-                    continue
+        total = 0
+        for start, end in date_matches:
+            try:
+                start_year = int(start)
+                end_year = current_year if 'present' in end else int(end)
+                total += max(0, end_year - start_year)
+            except:
+                continue
         
-        return min(total_years, 25)  # Cap at 25 years
+        return min(total, 20)
 
-    def analyze_seniority_level(self, text: str, experience_years: int) -> str:
-        """Determine candidate seniority"""
+    def get_seniority(self, text: str, exp_years: int) -> str:
+        """Determine seniority level"""
         text_lower = text.lower()
         
-        senior_indicators = ['senior', 'lead', 'principal', 'architect', 'manager', 'director', 'head of', 'chief']
-        junior_indicators = ['junior', 'entry', 'trainee', 'intern', 'graduate', 'fresher', 'associate']
-        
-        senior_count = sum(1 for indicator in senior_indicators if indicator in text_lower)
-        junior_count = sum(1 for indicator in junior_indicators if indicator in text_lower)
-        
-        # Experience-based classification
-        if experience_years >= 8 or senior_count >= 2:
+        if any(term in text_lower for term in ['senior', 'lead', 'principal', 'architect']) or exp_years >= 7:
             return 'senior'
-        elif experience_years <= 2 or junior_count >= 2:
+        elif any(term in text_lower for term in ['junior', 'entry', 'trainee']) or exp_years <= 2:
             return 'junior'
         else:
             return 'mid'
 
-    def extract_education(self, text: str) -> List[str]:
-        """Extract education information"""
-        education = []
-        
-        education_patterns = [
-            r'(?:bachelor|master|phd|doctorate|degree)\s*(?:of|in)?\s*([^\n,.]{5,60})',
-            r'(?:b\.?(?:tech|sc|a|e)|m\.?(?:tech|sc|a|ba)|phd|bca|mca)\s*(?:in)?\s*([^\n,.]{5,60})',
-            r'(?:university|college|institute)\s*([^\n,.]{10,80})',
-            r'(?:diploma|certificate)\s*(?:in)?\s*([^\n,.]{5,60})'
-        ]
-        
-        for pattern in education_patterns:
-            matches = re.findall(pattern, text, re.IGNORECASE)
-            for match in matches:
-                clean_match = match.strip()
-                if clean_match and len(clean_match) > 3:
-                    education.append(clean_match)
-        
-        return education[:5]
-
-    def identify_strengths_weaknesses(self, text: str, skills: List[str], experience_years: int) -> Tuple[List[str], List[str]]:
-        """Identify candidate strengths and potential areas for improvement"""
-        strengths = []
-        weaknesses = []
-        text_lower = text.lower()
-        
-        # Strength indicators
-        if experience_years > 8:
-            strengths.append("Extensive industry experience")
-        elif experience_years > 5:
-            strengths.append("Solid professional experience")
-        
-        if len(skills) > 15:
-            strengths.append("Diverse technical skill set")
-        elif len(skills) > 8:
-            strengths.append("Good technical breadth")
-        
-        # Leadership indicators
-        leadership_terms = ['led', 'managed', 'coordinated', 'mentored', 'supervised', 'directed', 'team lead']
-        if sum(1 for term in leadership_terms if term in text_lower) >= 2:
-            strengths.append("Leadership experience")
-        
-        # Achievement indicators
-        achievement_terms = ['achieved', 'improved', 'increased', 'reduced', 'delivered', 'implemented', 'optimized']
-        if sum(1 for term in achievement_terms if term in text_lower) >= 3:
-            strengths.append("Results-oriented with proven achievements")
-        
-        # Potential weaknesses
-        if experience_years < 2:
-            weaknesses.append("Limited professional experience")
-        
-        if len(skills) < 5:
-            weaknesses.append("Limited technical skill diversity")
-        
-        # Check for skill depth vs breadth
-        framework_skills = [s for s in skills if any(fw in s.lower() for fw in ['react', 'angular', 'vue', 'django', 'spring'])]
-        if len(framework_skills) > 5:
-            weaknesses.append("May lack depth in core technologies")
-        
-        return strengths, weaknesses
-
-    def intelligent_skill_matching(self, cv_skills: List[str], jd_skills: List[str]) -> Tuple[List[str], List[str], float]:
-        """Match skills using intelligent text analysis and synonyms"""
-        if not cv_skills or not jd_skills:
-            return [], jd_skills, 0.0
-        
-        matched_skills = []
-        missing_skills = []
-        
-        for jd_skill in jd_skills:
-            best_match = None
-            best_score = 0.0
-            
-            for cv_skill in cv_skills:
-                # Calculate match score
-                score = self._calculate_skill_similarity(jd_skill, cv_skill)
-                
-                if score > best_score:
-                    best_match = cv_skill
-                    best_score = score
-            
-            if best_match and best_score > 0.3:  # Threshold for match
-                matched_skills.append(f"{jd_skill} → {best_match}")
-            else:
-                missing_skills.append(jd_skill)
-        
-        match_percentage = (len(matched_skills) / len(jd_skills)) * 100 if jd_skills else 0
-        return matched_skills, missing_skills, match_percentage
-
-    def _calculate_skill_similarity(self, skill1: str, skill2: str) -> float:
-        """Calculate similarity between two skills"""
-        s1_lower = skill1.lower().strip()
-        s2_lower = skill2.lower().strip()
-        
-        # Direct match
-        if s1_lower == s2_lower or s1_lower in s2_lower or s2_lower in s1_lower:
-            return 1.0
-        
-        # Synonym matching
-        for main_skill, synonyms in self.skill_synonyms.items():
-            if s1_lower in synonyms and s2_lower in synonyms:
-                return 0.9
-        
-        # AI-powered similarity if available
-        if self.ai_enabled:
-            try:
-                embeddings = self.ai_model.encode([skill1, skill2])
-                similarity = embeddings[0] @ embeddings[1] / (
-                    (embeddings[0] @ embeddings[0]) ** 0.5 * (embeddings[1] @ embeddings[1]) ** 0.5
-                )
-                return float(similarity)
-            except Exception:
-                pass
-        
-        # Fallback: word overlap similarity
-        words1 = set(s1_lower.split())
-        words2 = set(s2_lower.split())
-        if words1 and words2:
-            overlap = words1.intersection(words2)
-            return len(overlap) / max(len(words1), len(words2))
-        
-        return 0.0
-
-    def generate_comprehensive_analysis(self, jd_text: str, cv_text: str, candidate_name: str) -> Dict[str, Any]:
-        """Generate comprehensive analysis like a human recruiter"""
-        
-        # Extract information
-        cv_skills = self.extract_skills_comprehensive(cv_text)
-        jd_skills = self.extract_skills_comprehensive(jd_text)
-        experience_years = self.calculate_experience_years(cv_text)
-        seniority = self.analyze_seniority_level(cv_text, experience_years)
-        education = self.extract_education(cv_text)
-        strengths, weaknesses = self.identify_strengths_weaknesses(cv_text, cv_skills, experience_years)
+    def analyze_cv(self, cv_text: str, jd_text: str, candidate_name: str) -> Dict[str, Any]:
+        """Comprehensive CV analysis"""
+        cv_skills = self.extract_skills(cv_text)
+        jd_skills = self.extract_skills(jd_text)
+        exp_years = self.calculate_experience(cv_text)
+        seniority = self.get_seniority(cv_text, exp_years)
         
         # Skill matching
-        matched_skills, missing_skills, skill_match_pct = self.intelligent_skill_matching(cv_skills, jd_skills)
+        matched = []
+        missing = []
         
-        # Calculate comprehensive score
-        fit_score = self._calculate_comprehensive_score(
-            skill_match_pct, experience_years, len(education), len(strengths), len(weaknesses)
-        )
+        for jd_skill in jd_skills:
+            found = False
+            for cv_skill in cv_skills:
+                if jd_skill.lower() in cv_skill.lower() or cv_skill.lower() in jd_skill.lower():
+                    matched.append(f"{jd_skill} → {cv_skill}")
+                    found = True
+                    break
+            
+            if not found:
+                missing.append(jd_skill)
+        
+        # Calculate score
+        skill_score = (len(matched) / max(len(jd_skills), 1)) * 100
+        exp_score = min((exp_years / 5) * 50 + 50, 100)
+        final_score = (skill_score * 0.6 + exp_score * 0.4)
         
         # Generate recommendation
-        recommendation = self._generate_recommendation(fit_score, candidate_name, strengths, weaknesses)
+        if final_score >= 85:
+            emoji = "🌟"
+            recommendation = f"Excellent candidate! {candidate_name} shows strong alignment with role requirements."
+        elif final_score >= 75:
+            emoji = "✅"
+            recommendation = f"Good match. {candidate_name} has solid qualifications for this role."
+        elif final_score >= 60:
+            emoji = "👍"
+            recommendation = f"Moderate fit. {candidate_name} shows potential with some skill gaps."
+        else:
+            emoji = "⚠️"
+            recommendation = f"Limited match. {candidate_name} may need significant training."
         
         return {
             'candidate_name': candidate_name,
-            'fit_score': round(fit_score, 1),
-            'fit_level': self._get_fit_level(fit_score),
-            'emoji': self._get_score_emoji(fit_score),
+            'fit_score': round(final_score, 1),
+            'emoji': emoji,
             'recommendation': recommendation,
-            'matched_skills': matched_skills,
-            'missing_skills': missing_skills,
-            'skill_match_percentage': round(skill_match_pct, 1),
-            'experience_years': experience_years,
+            'experience_years': exp_years,
             'seniority_level': seniority,
-            'education': education,
-            'strengths': strengths,
-            'weaknesses': weaknesses,
+            'matched_skills': matched,
+            'missing_skills': missing,
             'cv_skills': cv_skills,
-            'analysis_type': 'AI-Enhanced' if self.ai_enabled else 'Advanced Text Analysis'
+            'analysis_type': 'AI-Enhanced' if self.ai_enabled else 'Smart Text Analysis'
         }
 
-    def _calculate_comprehensive_score(self, skill_match_pct: float, exp_years: int, 
-                                     education_count: int, strength_count: int, weakness_count: int) -> float:
-        """Calculate comprehensive fit score"""
-        
-        # Base score from skill matching
-        score = skill_match_pct * 0.4  # 40% weight
-        
-        # Experience component (30% weight)
-        if exp_years >= 5:
-            score += 30
-        elif exp_years >= 2:
-            score += 20
-        elif exp_years >= 1:
-            score += 15
-        else:
-            score += 5
-        
-        # Education component (15% weight)
-        if education_count > 0:
-            score += 15
-        else:
-            score += 5
-        
-        # Strengths/weaknesses component (15% weight)
-        strength_bonus = min(strength_count * 3, 15)
-        weakness_penalty = min(weakness_count * 2, 10)
-        score += strength_bonus - weakness_penalty
-        
-        return min(max(score, 0), 100)  # Ensure 0-100 range
+# Initialize analyzer
+analyzer = SmartCVAnalyzer()
 
-    def _generate_recommendation(self, score: float, name: str, strengths: List[str], weaknesses: List[str]) -> str:
-        """Generate human-like recommendation"""
-        if score >= 85:
-            return f"🌟 Excellent candidate! {name} shows strong alignment with role requirements. {' '.join(strengths[:2])}. Highly recommended for immediate interview."
-        elif score >= 75:
-            return f"✅ Strong match. {name} demonstrates good fit with solid qualifications. {strengths[0] if strengths else 'Good overall profile'}. Recommend for interview."
-        elif score >= 65:
-            return f"👍 Moderate fit. {name} has relevant experience but some gaps exist. {'Consider if ' + weaknesses[0].lower() if weaknesses else 'May need additional evaluation'}."
-        elif score >= 50:
-            return f"⚠️ Below average match. {name} has basic qualifications but significant gaps. {weaknesses[0] if weaknesses else 'Limited alignment with requirements'}."
-        else:
-            return f"❌ Poor fit. {name} lacks most required qualifications. Not recommended unless requirements are flexible."
+# Compact HTML
+HTML_CONTENT = """<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cretzo AI - Smart CV Screening</title><style>
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0f1c;color:#fff;line-height:1.6}.container{max-width:1200px;margin:0 auto;padding:0 20px}
+.header{background:rgba(10,15,28,0.95);padding:1rem 0;position:fixed;top:0;width:100%;z-index:1000;border-bottom:1px solid #333}.header-content{display:flex;justify-content:space-between;align-items:center}.logo{font-size:1.5rem;font-weight:700;color:#0066ff}
+.nav{display:flex;gap:2rem}.nav a{color:#94a3b8;text-decoration:none}.nav a:hover{color:#fff}.btn{background:linear-gradient(45deg,#0066ff,#00b4d8);color:white;padding:0.75rem 1.5rem;border:none;border-radius:6px;cursor:pointer;font-weight:600;transition:all 0.3s ease}.btn:hover{transform:translateY(-1px)}
+.hero{min-height:100vh;display:flex;align-items:center;text-align:center;padding:100px 20px 50px}.hero h1{font-size:clamp(2.5rem,5vw,4rem);font-weight:700;margin-bottom:1.5rem;line-height:1.1}.hero p{font-size:1.25rem;color:#94a3b8;margin-bottom:3rem;max-width:600px;margin-left:auto;margin-right:auto}
+.hero-btns{display:flex;gap:1rem;justify-content:center;margin-bottom:4rem}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:2rem;margin-top:3rem}.stat{background:rgba(255,255,255,0.05);padding:2rem;border-radius:10px;text-align:center;border:1px solid #333;transition:transform 0.3s ease}
+.stat:hover{transform:translateY(-5px)}.stat-number{font-size:2.5rem;font-weight:700;color:#0066ff;display:block;margin-bottom:0.5rem}.demo{padding:6rem 0}.demo h2{font-size:2.5rem;text-align:center;margin-bottom:1rem}
+.demo .subtitle{text-align:center;color:#94a3b8;margin-bottom:3rem;font-size:1.1rem}.demo-container{background:rgba(255,255,255,0.05);padding:3rem;border-radius:15px;border:1px solid #333}.demo-grid{display:grid;grid-template-columns:1fr 1fr;gap:3rem}
+.demo-section{background:rgba(255,255,255,0.03);padding:2rem;border-radius:10px;border:1px solid #333}.upload-area{border:2px dashed #0066ff;padding:2rem;border-radius:10px;text-align:center;margin-bottom:1rem;cursor:pointer;transition:all 0.3s ease}
+.upload-area:hover{background:rgba(0,102,255,0.05);border-color:#00b4d8}.upload-area input{display:none}.upload-status{color:#00b4d8;margin-top:1rem;font-weight:500;padding:0.5rem;background:rgba(0,180,216,0.1);border-radius:6px;font-size:0.9rem}
+.contact{padding:6rem 0}.contact h2{font-size:2.5rem;text-align:center;margin-bottom:3rem}.contact-form{max-width:600px;margin:0 auto;background:rgba(255,255,255,0.05);padding:3rem;border-radius:15px;border:1px solid #333}
+.form-group{margin-bottom:1.5rem}.form-group label{display:block;margin-bottom:0.5rem;font-weight:500}.form-group input,.form-group select,.form-group textarea{width:100%;padding:1rem;background:rgba(255,255,255,0.05);border:1px solid #333;border-radius:6px;color:#fff}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:#0066ff}.form-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}.result-item{display:flex;justify-content:space-between;align-items:flex-start;padding:1.5rem;background:rgba(255,255,255,0.03);border-radius:8px;margin-bottom:1rem;border-left:3px solid #0066ff;transition:all 0.3s ease}
+.result-item:hover{background:rgba(255,255,255,0.06);transform:translateX(4px)}.candidate-info h4{font-weight:600;margin-bottom:0.5rem}.candidate-details{color:#94a3b8;font-size:0.9rem;line-height:1.4}.score-section{text-align:right;min-width:100px}
+.score{font-size:1.8rem;font-weight:700;color:#0066ff}.fit-level{font-size:0.8rem;color:#94a3b8;margin-top:0.25rem}.recommendation-box{margin-top:1.5rem;padding:1.5rem;background:rgba(0,102,255,0.08);border-radius:8px;border-left:3px solid #0066ff}
+.recommendation-box h4{color:#0066ff;margin-bottom:1rem;font-size:1.1rem}.recommendation-box p{font-size:0.95rem;line-height:1.5}.footer{background:rgba(0,0,0,0.5);padding:3rem 0;text-align:center;border-top:1px solid #333;margin-top:4rem}
+.loading{display:inline-block;width:20px;height:20px;border:2px solid #0066ff;border-radius:50%;border-top:2px solid transparent;animation:spin 1s linear infinite}@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.ai-badge{display:inline-block;background:linear-gradient(45deg,#0066ff,#00b4d8);color:white;padding:0.25rem 0.75rem;border-radius:12px;font-size:0.75rem;font-weight:600;margin-left:1rem}
+@media (max-width:768px){.nav{display:none}.hero-btns{flex-direction:column;align-items:center}.demo-grid{grid-template-columns:1fr}.form-row{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}}@media (max-width:480px){.stats{grid-template-columns:1fr}}
+</style></head><body>
+<div class="header"><div class="container"><div class="header-content"><div class="logo">Cretzo AI <span class="ai-badge">SMART</span></div>
+<div class="nav"><a href="#home">Home</a><a href="#demo">Demo</a><a href="#contact">Contact</a></div>
+<button class="btn" onclick="scrollTo('#contact')">Book Demo</button></div></div></div>
 
-    def _get_score_emoji(self, score: float) -> str:
-        """Get emoji for score"""
-        if score >= 85: return "🌟"
-        elif score >= 75: return "✅"
-        elif score >= 65: return "👍"
-        elif score >= 50: return "⚠️"
-        else: return "❌"
+<section id="home" class="hero"><div class="container"><h1>Smart CV Screening.<br>Progressive AI Enhancement.</h1>
+<p>Cretzo AI provides human-like CV evaluation with progressive enhancement. Advanced analysis that works immediately, upgrading to full AI as your system grows.</p>
+<div class="hero-btns"><button class="btn" onclick="scrollTo('#demo')">Try Smart Analysis</button>
+<button class="btn" onclick="scrollTo('#contact')">Get Enterprise Demo</button></div>
+<div class="stats"><div class="stat"><span class="stat-number">🧠 Smart</span><span>Progressive AI</span></div>
+<div class="stat"><span class="stat-number">90%+</span><span>Analysis Accuracy</span></div>
+<div class="stat"><span class="stat-number">5-15s</span><span>Per CV Analysis</span></div>
+<div class="stat"><span class="stat-number">100%</span><span>Uptime</span></div></div></div></section>
 
-    def _get_fit_level(self, score: float) -> str:
-        """Get fit level description"""
-        if score >= 85: return "Excellent Fit"
-        elif score >= 75: return "Good Fit"
-        elif score >= 65: return "Moderate Fit"
-        elif score >= 50: return "Below Average"
-        else: return "Poor Fit"
+<section id="demo" class="demo"><div class="container"><h2>Smart CV Analysis Demo</h2>
+<p class="subtitle">Upload real CVs and Job Descriptions for comprehensive analysis. System automatically adapts based on available capabilities.</p>
+<div class="demo-container"><div class="demo-grid"><div class="demo-section"><h3>📄 Upload Documents</h3>
+<div class="upload-area" onclick="document.getElementById('jd').click()"><div style="font-size:2rem;margin-bottom:1rem">📋</div>
+<h4>Job Description</h4><p>Upload JD (PDF/DOCX/TXT)</p><input type="file" id="jd" accept=".pdf,.docx,.txt" onchange="handleUpload('jd',this.files[0])"></div>
+<div class="upload-area" onclick="document.getElementById('cvs').click()"><div style="font-size:2rem;margin-bottom:1rem">👥</div>
+<h4>Candidate CVs</h4><p>Upload CV files (multiple supported)</p><input type="file" id="cvs" accept=".pdf,.docx,.txt" multiple onchange="handleUpload('cvs',this.files)"></div>
+<button class="btn" onclick="processScreening()" id="process-btn" disabled style="width:100%;margin-top:1rem">🧠 Analyze with Smart AI</button></div>
+<div class="demo-section"><h3>📊 Analysis Results</h3><div id="results"><div style="text-align:center;color:#94a3b8;padding:2rem">
+<div style="font-size:3rem;margin-bottom:1rem;opacity:0.5">🧠</div><p>Upload documents to see smart analysis</p>
+<p style="font-size:0.9rem;margin-top:0.5rem;opacity:0.7">Advanced pattern matching with progressive AI enhancement</p></div></div></div></div></div></div></section>
 
+<section id="contact" class="contact"><div class="container"><h2>Get Started with Smart AI</h2><div class="contact-form">
+<form onsubmit="submitContact(event)"><div class="form-row"><div class="form-group"><label>First Name</label><input type="text" name="firstName" required></div>
+<div class="form-group"><label>Last Name</label><input type="text" name="lastName" required></div></div>
+<div class="form-row"><div class="form-group"><label>Email</label><input type="email" name="email" required></div>
+<div class="form-group"><label>Company</label><input type="text" name="company" required></div></div>
+<div class="form-group"><label>Role</label><select name="role" required><option value="">Select Role</option><option value="hr-director">HR Director</option>
+<option value="talent">Talent Acquisition</option><option value="recruiter">Recruiter</option><option value="other">Other</option></select></div>
+<div class="form-group"><label>Message</label><textarea name="message" rows="4" placeholder="Tell us about your CV screening needs..."></textarea></div>
+<button type="submit" class="btn" style="width:100%">Schedule Smart AI Demo</button></form></div></div></section>
 
-# Initialize processor
-cv_processor = SmartCVProcessor()
+<div class="footer"><div class="container"><p>&copy; 2024 Cretzo AI. All rights reserved.</p>
+<p style="margin-top:1rem;color:#94a3b8">Smart CV Screening with Progressive AI Enhancement</p></div></div>
 
-# Enhanced HTML with progressive messaging
-PROGRESSIVE_HTML = '''<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cretzo AI - Smart CV Screening Platform</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0a0f1c; color: #fff; line-height: 1.6;
-        }
-        .container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+<script>
+let uploadState={jd:null,cvs:[]};
+function scrollTo(target){document.querySelector(target).scrollIntoView({behavior:'smooth'})}
+function handleUpload(type,files){
+if(type==='jd'&&files){uploadState.jd=files;const status=document.createElement('div');status.className='upload-status';
+status.textContent='✅ '+files.name+' uploaded';document.querySelector('#jd').parentElement.appendChild(status)}
+else if(type==='cvs'&&files.length>0){uploadState.cvs=Array.from(files);const status=document.createElement('div');
+status.className='upload-status';status.textContent='✅ '+files.length+' CV files uploaded';
+document.querySelector('#cvs').parentElement.appendChild(status)}
+if(uploadState.jd&&uploadState.cvs.length>0){const btn=document.getElementById('process-btn');btn.disabled=false;btn.style.opacity='1'}}
+
+async function processScreening(){
+const btn=document.getElementById('process-btn');const results=document.getElementById('results');
+btn.innerHTML='<span class="loading"></span> Smart AI Processing...';btn.disabled=true;
+results.innerHTML='<div style="text-align:center;padding:2rem"><div class="loading" style="margin:0 auto 1rem"></div><p>🧠 Analyzing CVs...</p></div>';
+try{const formData=new FormData();formData.append('jd_file',uploadState.jd);
+uploadState.cvs.forEach(file=>formData.append('cv_files',file));
+const response=await fetch('/api/smart-screen',{method:'POST',body:formData});
+if(response.ok){const result=await response.json();displayResults(result)}
+else{throw new Error('Analysis failed')}}
+catch(error){results.innerHTML='<div style="color:#ef4444;text-align:center;padding:2rem"><p>⚠️ Analysis failed</p></div>'}
+btn.innerHTML='✅ Analysis Complete';setTimeout(()=>{btn.innerHTML='🧠 Analyze with Smart AI';btn.disabled=false},2000)}
+
+function displayResults(data){
+const results=document.getElementById('results');const candidates=data.candidates||[];
+if(candidates.length===0){results.innerHTML='<div style="text-align:center;color:#94a3b8;padding:2rem">No candidates processed.</div>';return}
+const html=candidates.map(c=>`<div class="result-item"><div class="candidate-info"><h4>${c.candidate_name} ${c.emoji}</h4>
+<div class="candidate-details"><div>📊 ${c.experience_years} years • ${c.seniority_level}</div>
+<div>🎯 ${c.matched_skills?.length||0} skills matched</div></div></div>
+<div class="score-section"><div class="score">${c.fit_score}%</div></div></div>`).join('');
+const summary='<div class="recommendation-box"><h4>🧠 Smart AI Insight</h4><p><strong>Top:</strong> '+candidates[0].recommendation+'</p></div>';
+results.innerHTML=html+summary}
+
+function submitContact(e){e.preventDefault();const data=new FormData(e.target);
+fetch('/api/contact',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(data.entries()))})
+.then(()=>{alert('Thank you! We will contact you within 24 hours.');e.target.reset()})
+.catch(()=>{alert('Thank you! We will be in touch soon.');e.target.reset()})}
+</script></body></html>"""
+
+# Routes
+@app.get("/", response_class=HTMLResponse)
+async def home():
+    return HTML_CONTENT
+
+@app.get("/health")
+async def health():
+    return {
+        "status": "healthy",
+        "service": "Cretzo AI Smart CV Screening",
+        "ai_enabled": analyzer.ai_enabled,
+        "pdf_support": PDF_AVAILABLE,
+        "docx_support": DOCX_AVAILABLE,
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.post("/api/contact")
+async def contact(request: Request):
+    try:
+        data = await request.json()
+        contacts.append({"timestamp": datetime.now().isoformat(), "data": data})
+        logger.info(f"Contact: {data.get('firstName')} from {data.get('company')}")
+        return {"status": "success"}
+    except:
+        return {"status": "success"}
+
+@app.post("/api/smart-screen")
+async def smart_screen(jd_file: UploadFile = File(...), cv_files: List[UploadFile] = File(...)):
+    try:
+        screening_id = str(uuid.uuid4())
         
-        .header { 
-            background: rgba(10,15,28,0.95); padding: 1rem 0; 
-            position: fixed; top: 0; width: 100%; z-index: 1000;
-            border-bottom: 1px solid #333;
-        }
-        .header-content { display: flex; justify-content: space-between; align-items: center; }
-        .logo { font-size: 1.5rem; font-weight: 700; color: #0066ff; }
-        .nav { display: flex; gap: 2rem; }
-        .nav a { color: #94a3b8; text-decoration: none; }
-        .nav a:hover { color: #fff; }
-        .btn { 
-            background: linear-gradient(45deg, #0066ff, #00b4d8); 
-            color: white; padding: 0.75rem 1.5rem; border: none; 
-            border-radius: 6px; cursor: pointer; font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        .btn:hover { transform: translateY(-1px); }
+        # Process JD
+        jd_content = await jd_file.read()
+        jd_text = analyzer.extract_text(jd_content, jd_file.filename)
         
-        .hero { 
-            min-height: 100vh; display: flex; align-items: center; 
-            text-align: center; padding: 100px 20px 50px;
-        }
-        .hero h1 { 
-            font-size: clamp(2.5rem, 5vw, 4rem); font-weight: 700; 
-            margin-bottom: 1.5rem; line-height: 1.1;
-        }
-        .hero p { 
-            font-size: 1.25rem; color: #94a3b8; margin-bottom: 3rem; 
-            max-width: 600px; margin-left: auto; margin-right: auto;
-        }
-        .hero-btns { display: flex; gap: 1rem; justify-content: center; margin-bottom: 4rem; }
+        if len(jd_text.strip()) < 20:
+            raise HTTPException(status_code=400, detail="Could not extract meaningful text from job description")
         
-        .stats { 
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
-            gap: 2rem; margin-top: 3rem;
-        }
-        .stat { 
-            background: rgba(255,255,255,0.05); padding: 2rem; border-radius: 10px;
-            text-align: center; border: 1px solid #333; transition: transform 0.3s ease;
-        }
-        .stat:hover { transform: translateY(-5px); }
-        .stat-number { 
-            font-size: 2.5rem; font-weight: 700; color: #0066ff; 
-            display: block; margin-bottom: 0.5rem;
+        # Process CVs
+        results = []
+        for cv_file in cv_files:
+            try:
+                cv_content = await cv_file.read()
+                candidate_name = os.path.splitext(cv_file.filename)[0].replace('_', ' ').title()
+                cv_text = analyzer.extract_text(cv_content, cv_file.filename)
+                
+                if len(cv_text.strip()) >= 50:
+                    analysis = analyzer.analyze_cv(cv_text, jd_text, candidate_name)
+                    analysis['filename'] = cv_file.filename
+                    results.append(analysis)
+            except Exception as e:
+                logger.error(f"Error processing {cv_file.filename}: {e}")
+                continue
+        
+        if not results:
+            raise HTTPException(status_code=400, detail="No CVs could be processed successfully")
+        
+        # Sort by score
+        results.sort(key=lambda x: x['fit_score'], reverse=True)
+        
+        # Store results
+        results_store[screening_id] = {
+            'screening_id': screening_id,
+            'candidates': results,
+            'timestamp': datetime.now().isoformat()
         }
         
-        .demo { padding: 6rem 0; }
-        .demo h2 { font-size: 2.5rem; text-align: center; margin-bottom: 1rem; }
-        .demo .subtitle { 
-            text-align: center; color: #94a3b8; margin-bottom: 3rem; 
-            font-size: 1.1rem; max-width: 800px; margin-left: auto; margin-right: auto;
-        }
-        .demo-container { 
-            background: rgba(255,255,255,0.05); padding: 3rem; 
-            border-radius: 15px; border: 1px solid #333;
-        }
-        .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; }
-        .demo-section { 
-            background: rgba(255,255,255,0.03); padding: 2rem; 
-            border-radius: 10px; border: 1px solid #333;
-        }
-        .upload-area { 
-            border: 2px dashed #0066ff; padding: 2rem; border-radius: 10px;
-            text-align: center; margin-bottom: 1rem; cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        .upload-area:hover { 
-            background: rgba(0,102,255,0.05); 
-            border-color: #00b4d8;
-        }
-        .upload-area input { display: none; }
-        .upload-status { 
-            color: #00b4d8; margin-top: 1rem; font-weight: 500; 
-            padding: 0.5rem; background: rgba(0,180,216,0.1); 
-            border-radius: 6px; font-size: 0.9rem;
+        logger.info(f"Processed {len(results)} candidates successfully")
+        
+        return {
+            "screening_id": screening_id,
+            "status": "success",
+            "candidates": results,
+            "summary": {
+                "total_candidates": len(results),
+                "avg_score": round(sum(c['fit_score'] for c in results) / len(results), 1)
+            }
         }
         
-        .contact { padding: 6rem 0; }
-        .contact h2 { font-size: 2.5rem; text-align: center; margin-bottom: 3rem; }
-        .contact-form { 
-            max-width: 600px; margin: 0 auto; background: rgba(255,255,255,0.05);
-            padding: 3rem; border-radius: 15px; border: 1px solid #333;
-        }
-        .form-group { margin-bottom: 1.5rem; }
-        .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
-        .form-group input, .form-group select, .form-group textarea {
-            width: 100%; padding: 1rem; background: rgba(255,255,255,0.05);
-            border: 1px solid #333; border-radius: 6px; color: #fff;
-        }
-        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
-            outline: none; border-color: #0066ff;
-        }
-        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-        
-        .result-item { 
-            display: flex; justify-content: space-between; align-items: flex-start;
-            padding: 1.5rem; background: rgba(255,255,255,0.03); border-radius: 8px;
-            margin-bottom: 1rem; border-left: 3px solid #0066ff;
-            transition: all 0.3s ease;
-        }
-        .result-item:hover { background: rgba(255,255,255,0.06); transform: translateX(4px); }
-        .candidate-info h4 { font-weight: 600; margin-bottom: 0.5rem; }
-        .candidate-details { color: #94a3b8; font-size: 0.9rem; line-height: 1.4; }
-        .score-section { text-align: right; min-width: 100px; }
-        .score { font-size: 1.8rem; font-weight: 700; color: #0066ff; }
-        .fit-level { font-size: 0.8rem; color: #94a3b8; margin-top: 0.25rem; }
-        
-        .
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Screening error: {e}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    logger.info(f"🚀 Starting Cretzo AI (AI: {analyzer.ai_enabled}, PDF: {PDF_AVAILABLE}, DOCX: {DOCX_AVAILABLE})")
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")

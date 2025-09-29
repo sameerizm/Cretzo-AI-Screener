@@ -4,6 +4,7 @@
 # Core web framework (guaranteed to work)
 fastapi==0.68.0
 uvicorn==0.15.0
+python-multipart
 
 # Basic document processing (lightweight, no compilation)
 python-dateutil==2.8.1

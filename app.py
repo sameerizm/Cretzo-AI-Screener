@@ -1,266 +1,454 @@
-// React Component for CV Screening
-// Install: npm install lucide-react
+"""
+CV-JD MATCHING BACKEND SYSTEM
+==============================
 
-import React, { useState } from 'react';
-import { Upload, FileText, AlertCircle, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
+RUNNING LOCALLY:
+----------------
+1. Install dependencies:
+   pip install -r requirements.txt
 
-// Replace with your actual API URL
-const API_URL = 'http://localhost:8000/screen';
-// For deployed: const API_URL = 'https://your-app.onrender.com/screen';
+2. Run the server:
+   uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
-export default function CVScreening() {
-  const [jdFile, setJdFile] = useState(null);
-  const [skills, setSkills] = useState('');
-  const [cvFiles, setCvFiles] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState(null);
-  const [error, setError] = useState('');
+3. Access API docs at: http://localhost:8000/docs
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!jdFile || !skills || cvFiles.length === 0) {
-      setError('Please fill in all required fields');
-      return;
-    }
+DEPLOYING ON RENDER:
+--------------------
+1. Create a new Web Service on Render
+2. Connect your GitHub repository
+3. Set Build Command: pip install -r requirements.txt
+4. Set Start Command: uvicorn main:app --host 0.0.0.0 --port $PORT
+5. Add environment variable: PYTHON_VERSION = 3.9.0 (or higher)
+6. Deploy!
 
-    setLoading(true);
-    setError('');
-    setResults(null);
-
-    const formData = new FormData();
-    formData.append('jd_file', jdFile);
-    formData.append('must_have_skills', skills);
-    
-    cvFiles.forEach(file => {
-      formData.append('cv_files', file);
-    });
-
-    try {
-      const response = await fetch(API_URL, {
+FRONTEND INTEGRATION (JavaScript):
+----------------------------------
+// Upload Job Description
+const uploadJD = async () => {
+    const response = await fetch('https://your-app.onrender.com/upload_jd', {
         method: 'POST',
-        body: formData,
-      });
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            jd_text: "Looking for Python developer with 5+ years experience...",
+            mandatory_keywords: ["Python", "FastAPI", "PostgreSQL"]
+        })
+    });
+    const result = await response.json();
+    console.log(result);
+};
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+// Upload CV
+const uploadCV = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await fetch('https://your-app.onrender.com/upload_cv', {
+        method: 'POST',
+        body: formData
+    });
+    const result = await response.json();
+    console.log(result);
+};
 
-      const data = await response.json();
-      setResults(data);
-    } catch (err) {
-      setError(`Failed to screen CVs: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
+// Analyze CV against JD
+const analyze = async () => {
+    const response = await fetch('https://your-app.onrender.com/analyze', {
+        method: 'GET'
+    });
+    const result = await response.json();
+    console.log(result);
+};
+"""
 
-  const getVerdictStyle = (verdict) => {
-    if (verdict.includes('Strong')) return 'border-green-500 bg-green-50';
-    if (verdict.includes('Partial')) return 'border-yellow-500 bg-yellow-50';
-    return 'border-red-500 bg-red-50';
-  };
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List, Optional
+import re
+from io import BytesIO
+import uvicorn
+from datetime import datetime
 
-  const getVerdictIcon = (verdict) => {
-    if (verdict.includes('Strong')) return <CheckCircle className="text-green-600" size={24} />;
-    if (verdict.includes('Partial')) return <AlertTriangle className="text-yellow-600" size={24} />;
-    return <XCircle className="text-red-600" size={24} />;
-  };
+# Document processing
+try:
+    from PyPDF2 import PdfReader
+except ImportError:
+    from PyPDF2 import PdfFileReader as PdfReader
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 to-indigo-700 p-4">
-      <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-2xl p-8">
-        <h1 className="text-4xl font-bold text-gray-800 mb-8 text-center">
-          🎯 CV Screening System
-        </h1>
+try:
+    from docx import Document
+except ImportError:
+    import docx
+    Document = docx.Document
 
-        <div className="space-y-6">
-          {/* Job Description File */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Job Description File *
-            </label>
-            <div className="flex items-center justify-center w-full">
-              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                  <FileText className="w-10 h-10 mb-3 text-gray-400" />
-                  <p className="mb-2 text-sm text-gray-500">
-                    <span className="font-semibold">Click to upload</span> JD file
-                  </p>
-                  <p className="text-xs text-gray-500">TXT, PDF, or DOCX</p>
-                </div>
-                <input
-                  type="file"
-                  className="hidden"
-                  accept=".txt,.pdf,.docx"
-                  onChange={(e) => setJdFile(e.target.files[0])}
-                  required
-                />
-              </label>
-            </div>
-            {jdFile && (
-              <p className="mt-2 text-sm text-green-600">✓ {jdFile.name}</p>
-            )}
-          </div>
+# Text processing
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
-          {/* Must-Have Skills */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Must-Have Skills (comma-separated) *
-            </label>
-            <input
-              type="text"
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
-              placeholder="e.g., Python, FastAPI, Docker, SQL"
-              value={skills}
-              onChange={(e) => setSkills(e.target.value)}
-              required
-            />
-          </div>
+# Initialize FastAPI app
+app = FastAPI(
+    title="CV-JD Matching System",
+    description="Intelligent CV screening and matching against Job Descriptions",
+    version="1.0.0"
+)
 
-          {/* CV Files */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Candidate CV Files (multiple) *
-            </label>
-            <div className="flex items-center justify-center w-full">
-              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                  <Upload className="w-10 h-10 mb-3 text-gray-400" />
-                  <p className="mb-2 text-sm text-gray-500">
-                    <span className="font-semibold">Click to upload</span> CV files
-                  </p>
-                  <p className="text-xs text-gray-500">Select multiple files</p>
-                </div>
-                <input
-                  type="file"
-                  className="hidden"
-                  accept=".txt,.pdf,.docx"
-                  multiple
-                  onChange={(e) => setCvFiles(Array.from(e.target.files))}
-                  required
-                />
-              </label>
-            </div>
-            {cvFiles.length > 0 && (
-              <p className="mt-2 text-sm text-green-600">
-                ✓ {cvFiles.length} file(s) selected
-              </p>
-            )}
-          </div>
+# Enable CORS for frontend access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with your Hostinger domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-          {/* Submit Button */}
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={loading}
-            className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-4 rounded-lg font-semibold text-lg hover:shadow-lg transform hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Processing...' : 'Screen Candidates'}
-          </button>
-        </div>
-
-        {/* Loading Spinner */}
-        {loading && (
-          <div className="mt-8 text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-            <p className="mt-4 text-purple-600 font-semibold">Processing CVs...</p>
-          </div>
-        )}
-
-        {/* Error Message */}
-        {error && (
-          <div className="mt-6 bg-red-50 border-l-4 border-red-500 p-4 rounded">
-            <div className="flex items-center">
-              <AlertCircle className="text-red-500 mr-3" />
-              <p className="text-red-700">{error}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Results */}
-        {results && (
-          <div className="mt-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">
-              📊 Screening Results ({results.total_candidates} candidates)
-            </h2>
-
-            <div className="space-y-4">
-              {results.results.map((result, index) => (
-                <div
-                  key={index}
-                  className={`border-l-4 rounded-lg p-6 ${getVerdictStyle(result.verdict)}`}
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-800">
-                        {index + 1}. {result.candidate_filename}
-                      </h3>
-                      <div className="flex items-center mt-2">
-                        {getVerdictIcon(result.verdict)}
-                        <span className="ml-2 font-semibold text-lg">
-                          {result.verdict}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-4xl font-bold text-purple-600">
-                        {result.final_score}
-                      </div>
-                      <div className="text-sm text-gray-600">/ 100</div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4 mb-4">
-                    <div className="bg-white rounded-lg p-3 text-center">
-                      <div className="text-sm text-gray-600">Skill Match</div>
-                      <div className="text-xl font-bold text-gray-800">
-                        {result.skill_analysis.skill_match_percentage}%
-                      </div>
-                    </div>
-                    <div className="bg-white rounded-lg p-3 text-center">
-                      <div className="text-sm text-gray-600">JD Overlap</div>
-                      <div className="text-xl font-bold text-gray-800">
-                        {result.jd_overlap_percentage}%
-                      </div>
-                    </div>
-                    <div className="bg-white rounded-lg p-3 text-center">
-                      <div className="text-sm text-gray-600">Skills</div>
-                      <div className="text-xl font-bold text-gray-800">
-                        {result.skill_analysis.matched_count}/{result.skill_analysis.total_required}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-sm font-semibold text-gray-700 mb-2">
-                      Skills Analysis:
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {result.skill_analysis.matched_skills.map((skill, i) => (
-                        <span
-                          key={i}
-                          className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm"
-                        >
-                          ✓ {skill}
-                        </span>
-                      ))}
-                      {result.skill_analysis.missing_skills.map((skill, i) => (
-                        <span
-                          key={i}
-                          className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm"
-                        >
-                          ✗ {skill}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+# In-memory storage
+storage = {
+    "jd": None,
+    "jd_text": "",
+    "mandatory_keywords": [],
+    "cv_text": "",
+    "cv_filename": "",
+    "uploaded_at": None
 }
+
+# Pydantic models
+class JobDescription(BaseModel):
+    jd_text: str
+    mandatory_keywords: Optional[List[str]] = []
+
+class AnalysisResponse(BaseModel):
+    match_score: int
+    remarks: str
+    mandatory_keywords_missing: List[str]
+    experience_gap: Optional[str]
+    skills_matched: List[str]
+    skills_missing: List[str]
+
+# Helper Functions
+def extract_text_from_pdf(file_content: bytes) -> str:
+    """Extract text from PDF file"""
+    try:
+        pdf_file = BytesIO(file_content)
+        pdf_reader = PdfReader(pdf_file)
+        text = ""
+        
+        # Handle both old and new PyPDF2 API
+        if hasattr(pdf_reader, 'pages'):
+            pages = pdf_reader.pages
+        else:
+            pages = [pdf_reader.getPage(i) for i in range(pdf_reader.numPages)]
+        
+        for page in pages:
+            if hasattr(page, 'extract_text'):
+                text += page.extract_text()
+            else:
+                text += page.extractText()
+        
+        return text.strip()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error reading PDF: {str(e)}")
+
+def extract_text_from_docx(file_content: bytes) -> str:
+    """Extract text from DOCX file"""
+    try:
+        docx_file = BytesIO(file_content)
+        doc = Document(docx_file)
+        text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+        return text.strip()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error reading DOCX: {str(e)}")
+
+def extract_years_of_experience(text: str) -> Optional[int]:
+    """Extract years of experience from text using regex patterns"""
+    patterns = [
+        r'(\d+)\+?\s*years?\s+(?:of\s+)?experience',
+        r'experience[:\s]+(\d+)\+?\s*years?',
+        r'(\d+)\+?\s*yrs?\s+(?:of\s+)?experience',
+        r'(\d+)\+?\s*years?\s+(?:in|with)',
+    ]
+    
+    for pattern in patterns:
+        matches = re.findall(pattern, text.lower())
+        if matches:
+            return max([int(m) for m in matches])
+    
+    return None
+
+def extract_skills(text: str) -> List[str]:
+    """Extract technical skills from text"""
+    # Common technical skills keywords
+    skill_keywords = [
+        'python', 'java', 'javascript', 'c\\+\\+', 'c#', 'ruby', 'php', 'swift', 'kotlin',
+        'react', 'angular', 'vue', 'node', 'express', 'django', 'flask', 'fastapi',
+        'sql', 'nosql', 'mongodb', 'postgresql', 'mysql', 'redis', 'elasticsearch',
+        'aws', 'azure', 'gcp', 'docker', 'kubernetes', 'jenkins', 'git', 'ci/cd',
+        'machine learning', 'deep learning', 'tensorflow', 'pytorch', 'scikit-learn',
+        'rest api', 'graphql', 'microservices', 'agile', 'scrum', 'devops',
+        'html', 'css', 'typescript', 'linux', 'bash', 'shell scripting',
+        'splunk', 'elk', 'kafka', 'spark', 'hadoop', 'airflow',
+        'network security', 'cybersecurity', 'penetration testing', 'firewall',
+    ]
+    
+    text_lower = text.lower()
+    found_skills = []
+    
+    for skill in skill_keywords:
+        if re.search(r'\b' + skill + r'\b', text_lower):
+            found_skills.append(skill.replace('\\', '').title())
+    
+    return list(set(found_skills))
+
+def semantic_similarity(text1: str, text2: str) -> float:
+    """Calculate semantic similarity using TF-IDF and cosine similarity"""
+    if not text1 or not text2:
+        return 0.0
+    
+    try:
+        vectorizer = TfidfVectorizer(
+            stop_words='english',
+            max_features=500,
+            ngram_range=(1, 2)
+        )
+        
+        tfidf_matrix = vectorizer.fit_transform([text1, text2])
+        similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
+        
+        return float(similarity)
+    except Exception as e:
+        return 0.0
+
+def check_mandatory_keywords(cv_text: str, keywords: List[str]) -> List[str]:
+    """Check which mandatory keywords are missing from CV"""
+    cv_lower = cv_text.lower()
+    missing = []
+    
+    for keyword in keywords:
+        if keyword.lower() not in cv_lower:
+            missing.append(keyword)
+    
+    return missing
+
+def generate_remarks(
+    match_score: int,
+    missing_keywords: List[str],
+    exp_gap: Optional[str],
+    skills_matched: List[str],
+    skills_missing: List[str]
+) -> str:
+    """Generate recruiter-style feedback"""
+    remarks = []
+    
+    if match_score >= 80:
+        remarks.append("Strong candidate with excellent alignment to the role.")
+    elif match_score >= 60:
+        remarks.append("Good candidate with relevant experience.")
+    else:
+        remarks.append("Candidate shows some potential but has significant gaps.")
+    
+    if skills_matched:
+        top_skills = skills_matched[:5]
+        remarks.append(f"Demonstrates proficiency in: {', '.join(top_skills)}.")
+    
+    if missing_keywords:
+        remarks.append(f"Missing critical requirements: {', '.join(missing_keywords)}.")
+    
+    if skills_missing and len(skills_missing) <= 5:
+        remarks.append(f"Would benefit from experience in: {', '.join(skills_missing)}.")
+    
+    if exp_gap:
+        remarks.append(f"Experience note: {exp_gap}.")
+    
+    return " ".join(remarks)
+
+# API Endpoints
+@app.get("/")
+def root():
+    """Health check endpoint"""
+    return {
+        "status": "active",
+        "message": "CV-JD Matching System API",
+        "version": "1.0.0",
+        "endpoints": {
+            "upload_jd": "/upload_jd [POST]",
+            "upload_cv": "/upload_cv [POST]",
+            "analyze": "/analyze [GET]",
+            "docs": "/docs"
+        }
+    }
+
+@app.post("/upload_jd")
+def upload_job_description(jd: JobDescription):
+    """
+    Upload Job Description with mandatory keywords
+    
+    Request body:
+    {
+        "jd_text": "Job description text...",
+        "mandatory_keywords": ["Python", "FastAPI", "5+ years"]
+    }
+    """
+    if not jd.jd_text or len(jd.jd_text.strip()) < 50:
+        raise HTTPException(
+            status_code=400,
+            detail="Job description must be at least 50 characters long"
+        )
+    
+    storage["jd"] = jd
+    storage["jd_text"] = jd.jd_text
+    storage["mandatory_keywords"] = jd.mandatory_keywords or []
+    storage["uploaded_at"] = datetime.now().isoformat()
+    
+    return {
+        "success": True,
+        "message": "Job description uploaded successfully",
+        "jd_length": len(jd.jd_text),
+        "mandatory_keywords_count": len(storage["mandatory_keywords"]),
+        "mandatory_keywords": storage["mandatory_keywords"]
+    }
+
+@app.post("/upload_cv")
+async def upload_cv(file: UploadFile = File(...)):
+    """
+    Upload CV file (PDF or DOCX) and perform initial analysis
+    
+    Accepts: PDF, DOCX files
+    """
+    if not storage["jd"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Please upload a job description first using /upload_jd"
+        )
+    
+    # Validate file type
+    filename = file.filename.lower()
+    if not (filename.endswith('.pdf') or filename.endswith('.docx')):
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF and DOCX files are supported"
+        )
+    
+    # Read file content
+    content = await file.read()
+    
+    # Extract text based on file type
+    if filename.endswith('.pdf'):
+        cv_text = extract_text_from_pdf(content)
+    else:
+        cv_text = extract_text_from_docx(content)
+    
+    if not cv_text or len(cv_text.strip()) < 100:
+        raise HTTPException(
+            status_code=400,
+            detail="Could not extract sufficient text from CV. Please ensure the file is not corrupted."
+        )
+    
+    # Store CV
+    storage["cv_text"] = cv_text
+    storage["cv_filename"] = file.filename
+    
+    return {
+        "success": True,
+        "message": "CV uploaded and processed successfully",
+        "filename": file.filename,
+        "cv_length": len(cv_text),
+        "ready_for_analysis": True
+    }
+
+@app.get("/analyze", response_model=AnalysisResponse)
+def analyze_cv_against_jd():
+    """
+    Analyze uploaded CV against the Job Description
+    
+    Returns structured feedback with match score, remarks, and gap analysis
+    """
+    if not storage["jd"] or not storage["cv_text"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Please upload both Job Description (/upload_jd) and CV (/upload_cv) first"
+        )
+    
+    jd_text = storage["jd_text"]
+    cv_text = storage["cv_text"]
+    mandatory_keywords = storage["mandatory_keywords"]
+    
+    # 1. Check mandatory keywords
+    missing_keywords = check_mandatory_keywords(cv_text, mandatory_keywords)
+    
+    # 2. Extract and compare skills
+    jd_skills = extract_skills(jd_text)
+    cv_skills = extract_skills(cv_text)
+    
+    skills_matched = [skill for skill in jd_skills if skill in cv_skills]
+    skills_missing = [skill for skill in jd_skills if skill not in cv_skills]
+    
+    # 3. Calculate semantic similarity
+    semantic_score = semantic_similarity(jd_text, cv_text)
+    
+    # 4. Extract years of experience
+    jd_years = extract_years_of_experience(jd_text)
+    cv_years = extract_years_of_experience(cv_text)
+    
+    experience_gap = None
+    if jd_years and cv_years:
+        if cv_years < jd_years:
+            gap = jd_years - cv_years
+            experience_gap = f"{gap} year{'s' if gap > 1 else ''} less than required ({cv_years} vs {jd_years} years)"
+        elif cv_years >= jd_years:
+            experience_gap = f"Meets experience requirement ({cv_years} years)"
+    elif jd_years:
+        experience_gap = "Experience duration not clearly stated in CV"
+    
+    # 5. Calculate overall match score
+    base_score = int(semantic_score * 100)
+    
+    # Adjust for mandatory keywords
+    if mandatory_keywords:
+        keyword_penalty = (len(missing_keywords) / len(mandatory_keywords)) * 30
+        base_score -= int(keyword_penalty)
+    
+    # Adjust for skills match
+    if jd_skills:
+        skills_bonus = (len(skills_matched) / len(jd_skills)) * 15
+        base_score += int(skills_bonus)
+    
+    # Adjust for experience
+    if jd_years and cv_years and cv_years < jd_years:
+        exp_penalty = min(15, (jd_years - cv_years) * 5)
+        base_score -= exp_penalty
+    
+    # Ensure score is between 0-100
+    match_score = max(0, min(100, base_score))
+    
+    # 6. Generate remarks
+    remarks = generate_remarks(
+        match_score,
+        missing_keywords,
+        experience_gap,
+        skills_matched,
+        skills_missing
+    )
+    
+    return AnalysisResponse(
+        match_score=match_score,
+        remarks=remarks,
+        mandatory_keywords_missing=missing_keywords,
+        experience_gap=experience_gap,
+        skills_matched=skills_matched[:10],  # Top 10 matched skills
+        skills_missing=skills_missing[:10]   # Top 10 missing skills
+    )
+
+@app.get("/status")
+def get_system_status():
+    """Get current system status and uploaded data info"""
+    return {
+        "jd_uploaded": storage["jd"] is not None,
+        "cv_uploaded": bool(storage["cv_text"]),
+        "cv_filename": storage.get("cv_filename", ""),
+        "mandatory_keywords": storage.get("mandatory_keywords", []),
+        "ready_for_analysis": storage["jd"] is not None and bool(storage["cv_text"])
+    }
+
+# Run the application (for local development)
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

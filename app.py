@@ -1,313 +1,266 @@
-"""
-AI-Powered CV Screening Backend
-FastAPI application for screening candidate CVs against job descriptions
-"""
+// React Component for CV Screening
+// Install: npm install lucide-react
 
-from fastapi import FastAPI, File, Form, UploadFile, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Dict, Set
-import re
-from io import BytesIO
+import React, { useState } from 'react';
+import { Upload, FileText, AlertCircle, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 
-app = FastAPI(
-    title="CV Screening API",
-    description="Lightweight CV screening system using skill matching and text overlap",
-    version="1.0.0"
-)
+// Replace with your actual API URL
+const API_URL = 'http://localhost:8000/screen';
+// For deployed: const API_URL = 'https://your-app.onrender.com/screen';
 
-# Enable CORS for frontend integration
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Configure specific domains in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+export default function CVScreening() {
+  const [jdFile, setJdFile] = useState(null);
+  const [skills, setSkills] = useState('');
+  const [cvFiles, setCvFiles] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState(null);
+  const [error, setError] = useState('');
 
-
-def extract_text_from_file(file_content: bytes, filename: str) -> str:
-    """
-    Extract text from uploaded file (supports txt, docx, pdf as plain text)
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     
-    Args:
-        file_content: Raw file bytes
-        filename: Original filename with extension
-    
-    Returns:
-        Extracted text content
-    """
-    try:
-        # Attempt to decode as UTF-8 text
-        text = file_content.decode('utf-8', errors='ignore')
-        return text
-    except Exception as e:
-        # Fallback: try latin-1 encoding
-        try:
-            text = file_content.decode('latin-1', errors='ignore')
-            return text
-        except:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Failed to extract text from {filename}. Ensure file is text-readable."
-            )
-
-
-def normalize_text(text: str) -> str:
-    """
-    Normalize text for processing: lowercase, remove special chars, extra spaces
-    
-    Args:
-        text: Raw text string
-    
-    Returns:
-        Normalized text
-    """
-    # Convert to lowercase
-    text = text.lower()
-    # Remove special characters except spaces
-    text = re.sub(r'[^a-z0-9\s]', ' ', text)
-    # Remove extra whitespace
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
-
-
-def extract_words(text: str) -> Set[str]:
-    """
-    Extract unique words from text (excluding common stop words)
-    
-    Args:
-        text: Normalized text
-    
-    Returns:
-        Set of unique words
-    """
-    # Common stop words to exclude
-    stop_words = {
-        'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from',
-        'has', 'he', 'in', 'is', 'it', 'its', 'of', 'on', 'that', 'the',
-        'to', 'was', 'will', 'with', 'we', 'you', 'your', 'this', 'have',
-        'but', 'or', 'not', 'can', 'all', 'were', 'been', 'their', 'there'
-    }
-    
-    words = set(text.split())
-    # Filter out stop words and short words (< 3 chars)
-    meaningful_words = {w for w in words if len(w) >= 3 and w not in stop_words}
-    return meaningful_words
-
-
-def check_skill_match(cv_text: str, skills: List[str]) -> Dict:
-    """
-    Check which must-have skills are present in CV
-    
-    Args:
-        cv_text: Normalized CV text
-        skills: List of must-have skills
-    
-    Returns:
-        Dictionary with matched skills, missing skills, and match percentage
-    """
-    matched = []
-    missing = []
-    
-    for skill in skills:
-        # Normalize skill for matching
-        skill_normalized = normalize_text(skill)
-        
-        # Check if skill appears in CV (flexible matching)
-        if skill_normalized in cv_text:
-            matched.append(skill)
-        else:
-            missing.append(skill)
-    
-    match_percentage = (len(matched) / len(skills) * 100) if skills else 0
-    
-    return {
-        "matched_skills": matched,
-        "missing_skills": missing,
-        "total_skills": len(skills),
-        "matched_count": len(matched),
-        "match_percentage": round(match_percentage, 2)
+    if (!jdFile || !skills || cvFiles.length === 0) {
+      setError('Please fill in all required fields');
+      return;
     }
 
+    setLoading(true);
+    setError('');
+    setResults(null);
 
-def calculate_jd_overlap(jd_text: str, cv_text: str) -> float:
-    """
-    Calculate text overlap between JD and CV using word intersection
+    const formData = new FormData();
+    formData.append('jd_file', jdFile);
+    formData.append('must_have_skills', skills);
     
-    Args:
-        jd_text: Normalized job description text
-        cv_text: Normalized CV text
-    
-    Returns:
-        Overlap percentage (0-100)
-    """
-    jd_words = extract_words(jd_text)
-    cv_words = extract_words(cv_text)
-    
-    if not jd_words:
-        return 0.0
-    
-    # Calculate intersection
-    common_words = jd_words.intersection(cv_words)
-    overlap_percentage = (len(common_words) / len(jd_words)) * 100
-    
-    return round(overlap_percentage, 2)
+    cvFiles.forEach(file => {
+      formData.append('cv_files', file);
+    });
 
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        body: formData,
+      });
 
-def calculate_final_score(skill_match_pct: float, jd_overlap_pct: float) -> float:
-    """
-    Calculate weighted final score
-    
-    Args:
-        skill_match_pct: Must-have skills match percentage
-        jd_overlap_pct: JD-CV overlap percentage
-    
-    Returns:
-        Final score (0-100)
-    """
-    # Weighted scoring: 40% skills, 60% JD overlap
-    final_score = (skill_match_pct * 0.4) + (jd_overlap_pct * 0.6)
-    return round(final_score, 2)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-
-def assign_verdict(final_score: float) -> str:
-    """
-    Assign verdict based on final score
-    
-    Args:
-        final_score: Calculated final score
-    
-    Returns:
-        Verdict string
-    """
-    if final_score >= 75:
-        return "Strong Match ✅"
-    elif final_score >= 50:
-        return "Partial Match ⚠️"
-    else:
-        return "Not Suitable ❌"
-
-
-@app.get("/")
-async def root():
-    """Health check endpoint"""
-    return {
-        "status": "active",
-        "message": "CV Screening API is running",
-        "endpoints": {
-            "screen": "/screen (POST)"
-        }
+      const data = await response.json();
+      setResults(data);
+    } catch (err) {
+      setError(`Failed to screen CVs: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
+  };
 
+  const getVerdictStyle = (verdict) => {
+    if (verdict.includes('Strong')) return 'border-green-500 bg-green-50';
+    if (verdict.includes('Partial')) return 'border-yellow-500 bg-yellow-50';
+    return 'border-red-500 bg-red-50';
+  };
 
-@app.post("/screen")
-async def screen_candidates(
-    jd_file: UploadFile = File(..., description="Job Description file"),
-    must_have_skills: str = Form(..., description="Comma-separated must-have skills"),
-    cv_files: List[UploadFile] = File(..., description="Candidate CV files")
-):
-    """
-    Screen candidate CVs against job description
-    
-    Parameters:
-        - jd_file: Job description file (txt, docx, pdf)
-        - must_have_skills: Comma-separated string of required skills
-        - cv_files: List of candidate CV files
-    
-    Returns:
-        JSON array with screening results for each CV
-    """
-    
-    # Validate inputs
-    if not cv_files:
-        raise HTTPException(status_code=400, detail="At least one CV file is required")
-    
-    if not must_have_skills.strip():
-        raise HTTPException(status_code=400, detail="Must-have skills cannot be empty")
-    
-    try:
-        # Extract JD text
-        jd_content = await jd_file.read()
-        jd_text_raw = extract_text_from_file(jd_content, jd_file.filename)
-        jd_text_normalized = normalize_text(jd_text_raw)
-        
-        # Parse must-have skills
-        skills_list = [skill.strip() for skill in must_have_skills.split(',') if skill.strip()]
-        
-        if not skills_list:
-            raise HTTPException(status_code=400, detail="No valid skills provided")
-        
-        # Process each CV
-        results = []
-        
-        for cv_file in cv_files:
-            try:
-                # Extract CV text
-                cv_content = await cv_file.read()
-                cv_text_raw = extract_text_from_file(cv_content, cv_file.filename)
-                cv_text_normalized = normalize_text(cv_text_raw)
-                
-                # Check skill matches
-                skill_match_result = check_skill_match(cv_text_normalized, skills_list)
-                
-                # Calculate JD overlap
-                jd_overlap = calculate_jd_overlap(jd_text_normalized, cv_text_normalized)
-                
-                # Calculate final score
-                final_score = calculate_final_score(
-                    skill_match_result['match_percentage'],
-                    jd_overlap
-                )
-                
-                # Assign verdict
-                verdict = assign_verdict(final_score)
-                
-                # Compile result
-                result = {
-                    "candidate_filename": cv_file.filename,
-                    "skill_analysis": {
-                        "matched_skills": skill_match_result['matched_skills'],
-                        "missing_skills": skill_match_result['missing_skills'],
-                        "matched_count": skill_match_result['matched_count'],
-                        "total_required": skill_match_result['total_skills'],
-                        "skill_match_percentage": skill_match_result['match_percentage']
-                    },
-                    "jd_overlap_percentage": jd_overlap,
-                    "final_score": final_score,
-                    "verdict": verdict
-                }
-                
-                results.append(result)
-                
-            except Exception as e:
-                # Handle individual CV processing errors
-                results.append({
-                    "candidate_filename": cv_file.filename,
-                    "error": f"Failed to process CV: {str(e)}",
-                    "final_score": 0,
-                    "verdict": "Processing Error ❌"
-                })
-        
-        # Sort results by final score (highest first)
-        results.sort(key=lambda x: x.get('final_score', 0), reverse=True)
-        
-        return {
-            "success": True,
-            "job_description_file": jd_file.filename,
-            "must_have_skills": skills_list,
-            "total_candidates": len(results),
-            "results": results
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Internal server error: {str(e)}"
-        )
+  const getVerdictIcon = (verdict) => {
+    if (verdict.includes('Strong')) return <CheckCircle className="text-green-600" size={24} />;
+    if (verdict.includes('Partial')) return <AlertTriangle className="text-yellow-600" size={24} />;
+    return <XCircle className="text-red-600" size={24} />;
+  };
 
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-600 to-indigo-700 p-4">
+      <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-2xl p-8">
+        <h1 className="text-4xl font-bold text-gray-800 mb-8 text-center">
+          🎯 CV Screening System
+        </h1>
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+        <div className="space-y-6">
+          {/* Job Description File */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Job Description File *
+            </label>
+            <div className="flex items-center justify-center w-full">
+              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                  <FileText className="w-10 h-10 mb-3 text-gray-400" />
+                  <p className="mb-2 text-sm text-gray-500">
+                    <span className="font-semibold">Click to upload</span> JD file
+                  </p>
+                  <p className="text-xs text-gray-500">TXT, PDF, or DOCX</p>
+                </div>
+                <input
+                  type="file"
+                  className="hidden"
+                  accept=".txt,.pdf,.docx"
+                  onChange={(e) => setJdFile(e.target.files[0])}
+                  required
+                />
+              </label>
+            </div>
+            {jdFile && (
+              <p className="mt-2 text-sm text-green-600">✓ {jdFile.name}</p>
+            )}
+          </div>
+
+          {/* Must-Have Skills */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Must-Have Skills (comma-separated) *
+            </label>
+            <input
+              type="text"
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+              placeholder="e.g., Python, FastAPI, Docker, SQL"
+              value={skills}
+              onChange={(e) => setSkills(e.target.value)}
+              required
+            />
+          </div>
+
+          {/* CV Files */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Candidate CV Files (multiple) *
+            </label>
+            <div className="flex items-center justify-center w-full">
+              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                  <Upload className="w-10 h-10 mb-3 text-gray-400" />
+                  <p className="mb-2 text-sm text-gray-500">
+                    <span className="font-semibold">Click to upload</span> CV files
+                  </p>
+                  <p className="text-xs text-gray-500">Select multiple files</p>
+                </div>
+                <input
+                  type="file"
+                  className="hidden"
+                  accept=".txt,.pdf,.docx"
+                  multiple
+                  onChange={(e) => setCvFiles(Array.from(e.target.files))}
+                  required
+                />
+              </label>
+            </div>
+            {cvFiles.length > 0 && (
+              <p className="mt-2 text-sm text-green-600">
+                ✓ {cvFiles.length} file(s) selected
+              </p>
+            )}
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-4 rounded-lg font-semibold text-lg hover:shadow-lg transform hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Processing...' : 'Screen Candidates'}
+          </button>
+        </div>
+
+        {/* Loading Spinner */}
+        {loading && (
+          <div className="mt-8 text-center">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+            <p className="mt-4 text-purple-600 font-semibold">Processing CVs...</p>
+          </div>
+        )}
+
+        {/* Error Message */}
+        {error && (
+          <div className="mt-6 bg-red-50 border-l-4 border-red-500 p-4 rounded">
+            <div className="flex items-center">
+              <AlertCircle className="text-red-500 mr-3" />
+              <p className="text-red-700">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Results */}
+        {results && (
+          <div className="mt-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">
+              📊 Screening Results ({results.total_candidates} candidates)
+            </h2>
+
+            <div className="space-y-4">
+              {results.results.map((result, index) => (
+                <div
+                  key={index}
+                  className={`border-l-4 rounded-lg p-6 ${getVerdictStyle(result.verdict)}`}
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-800">
+                        {index + 1}. {result.candidate_filename}
+                      </h3>
+                      <div className="flex items-center mt-2">
+                        {getVerdictIcon(result.verdict)}
+                        <span className="ml-2 font-semibold text-lg">
+                          {result.verdict}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-4xl font-bold text-purple-600">
+                        {result.final_score}
+                      </div>
+                      <div className="text-sm text-gray-600">/ 100</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4 mb-4">
+                    <div className="bg-white rounded-lg p-3 text-center">
+                      <div className="text-sm text-gray-600">Skill Match</div>
+                      <div className="text-xl font-bold text-gray-800">
+                        {result.skill_analysis.skill_match_percentage}%
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 text-center">
+                      <div className="text-sm text-gray-600">JD Overlap</div>
+                      <div className="text-xl font-bold text-gray-800">
+                        {result.jd_overlap_percentage}%
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 text-center">
+                      <div className="text-sm text-gray-600">Skills</div>
+                      <div className="text-xl font-bold text-gray-800">
+                        {result.skill_analysis.matched_count}/{result.skill_analysis.total_required}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-sm font-semibold text-gray-700 mb-2">
+                      Skills Analysis:
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {result.skill_analysis.matched_skills.map((skill, i) => (
+                        <span
+                          key={i}
+                          className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm"
+                        >
+                          ✓ {skill}
+                        </span>
+                      ))}
+                      {result.skill_analysis.missing_skills.map((skill, i) => (
+                        <span
+                          key={i}
+                          className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm"
+                        >
+                          ✗ {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
